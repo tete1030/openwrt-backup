@@ -1,9 +1,11 @@
 #!/bin/sh
 
+set -eo pipefail
+
 # BACKUP_MEDIA=/mnt/sdb1
 BACKUP_MEDIA=/mnt/disk
 OVERLAY_MEDIA=/mnt/sda5
-UPGRADE_IMG=/tmp/openwrt-x86-64-combined-squashfs.img
+UPGRADE_IMG=/tmp/openwrt-x86-64-generic-squashfs-combined-efi.img
 
 umount "${BACKUP_MEDIA}"
 if [ -z $NO_NEW_OVERLAY ]; then

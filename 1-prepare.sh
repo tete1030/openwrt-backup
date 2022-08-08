@@ -1,7 +1,9 @@
 #!/bin/sh
 
 FILE_EXCLUDES="
-/opt/netdata
+./upper/opt/netdata
+./upper/mnt
+./docker
 "
 DISABLE_FSTAB_OVERLAY="overlay_extroot overlay_ori"
 LGC_OVERLAY_EXTROOT="/overlay"
@@ -30,6 +32,20 @@ if [ ! -d "${LGC_OVERLAY_EXTROOT}" ] || ! mountpoint -q ${LGC_OVERLAY_EXTROOT} ;
     EXTROOT_EXIST=0
 fi
 
+exclude_opts() {
+    (
+    cd "$1"
+    printf '%s' "${FILE_EXCLUDES}" | while IFS=$'\n' read -r line ; do
+        if [ -z "${line}" ]; then
+            continue
+        fi
+        if [ ! -f "${line}" ] && [ ! -d "${line}" ]; then
+            continue
+        fi
+        printf " --exclude='%s'" "${line}"
+    done
+    )
+}
 
 mountpoint -q "${BACKUP_MEDIA}"
 retval=$?
@@ -41,16 +57,11 @@ fi
 mkdir -p "${BACKUP_DIR}"
 
 if [ -z $NO_NEW_OVERLAY ]; then
+    eval "tar $(exclude_opts "${LGC_OVERLAY_INTERNAL}") --exclude='./upper_old*' -czvf '${BACKUP_DIR}/internal_overlay.tar.gz' -C '${LGC_OVERLAY_INTERNAL}' ."
 
-    EXC_OPTS="$(printf '%s' "${FILE_EXCLUDES}" | while IFS=$'\n' read -r line ; do
-        if [ -z "${line}" ]; then
-            continue
-        fi
-        printf " -X './upper%s'" "${line}"
-    done)"
-
-    tar ${EXC_OPTS} -X './upper_old*' -czvf "${BACKUP_DIR}/internal_overlay.tar.gz" -C "${LGC_OVERLAY_INTERNAL}" .
-    [ $EXTROOT_EXIST -eq 0 ] || tar ${EXC_OPTS} -X './upper_old*' -czvf "${BACKUP_DIR}/extroot_overlay.tar.gz" -C "${LGC_OVERLAY_EXTROOT}" .
+    [ $EXTROOT_EXIST -eq 0 ] || (
+        eval "tar $(exclude_opts "${LGC_OVERLAY_EXTROOT}") --exclude='./upper_old*' -czvf '${BACKUP_DIR}/extroot_overlay.tar.gz' -C '${LGC_OVERLAY_EXTROOT}' ."
+    )
 
 fi
 
@@ -93,6 +104,6 @@ if [ -n "${DISABLE_FSTAB_OVERLAY}" ]; then
     uci -c "${LGC_OVERLAY_INTERNAL}/upper/etc/config" commit fstab
 fi
 
-# Enter into internal overlay to avoid backup extroot
+# Allow regenerating .extroot-uuid, avoiding mismatch problem
 [ $EXTROOT_EXIST -eq 0 ] || rm "${LGC_OVERLAY_EXTROOT}/etc/.extroot-uuid"
 
